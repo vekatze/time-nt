@@ -1,0 +1,303 @@
+import {
+  core.external {exit, malloc},
+  core.int.text {show},
+  core.memory {load-int, store-int},
+  core.text {format, take, unsafe-from-c-string, unsafe-get-content-pointer},
+  core.word,
+}
+
+foreign {
+  clock_gettime(int, pointer): int,
+  localtime(pointer): pointer,
+  gmtime(pointer): pointer,
+  mktime(pointer): pointer,
+  timegm(pointer): pointer,
+  snprintf(pointer, int, pointer): int,
+  sprintf(pointer, pointer): int,
+}
+
+constant CLOCK_REALTIME: int {
+  0
+}
+
+data moment {
+| Moment(
+    seconds: int,
+    nanoseconds: int,
+  )
+}
+
+data time {
+| Time(
+    nanoseconds: int,
+    seconds: int,
+    minutes: int,
+    hours: int,
+    day: int,
+    month: int,
+    year: int,
+    weekday: int,
+    yearday: int,
+    is-dst: bool,
+    gmt-offset: int,
+    timezone: text,
+  )
+}
+
+define _encode-dst(x: int): bool {
+  if eq-int(x, 0) {
+    False
+  } else {
+    True
+  }
+}
+
+define _decode-dst(x: bool): int {
+  if x {
+    1
+  } else {
+    0
+  }
+}
+
+define _from-moment(t: moment, interpreter: (int) -> int): time {
+  let Moment of {seconds, nanoseconds} = t in
+  let struct = magic alloca(int8, 16) in
+  store-int(seconds, struct);
+  store-int(nanoseconds, add-int(struct, 8));
+  let localtime = interpreter(struct) in
+  let nanoseconds: int = load-int(add-int(struct, 8)) in
+  let seconds: int = magic load(int32, localtime) in
+  let minutes: int = magic load(int32, add-int(localtime, 4)) in
+  let hours: int = magic load(int32, add-int(localtime, 8)) in
+  let day: int = magic load(int32, add-int(localtime, 12)) in
+  let month: int = add-int(1, magic load(int32, add-int(localtime, 16))) in
+  let year: int = add-int(1900, magic load(int32, add-int(localtime, 20))) in
+  let weekday: int = magic load(int32, add-int(localtime, 24)) in
+  let yearday: int = magic load(int32, add-int(localtime, 28)) in
+  let is-dst = _encode-dst(magic load(int32, add-int(localtime, 32))) in
+  let gmt-offset: int = magic load(int32, add-int(localtime, 40)) in
+  let timezone: text = unsafe-from-c-string(magic load(int, add-int(localtime, 48))) in
+  Time of {
+    nanoseconds,
+    seconds,
+    minutes,
+    hours,
+    day,
+    month,
+    year,
+    weekday,
+    yearday,
+    is-dst,
+    gmt-offset,
+    timezone,
+  }
+}
+
+define _from-time(t: time, interpreter: (int) -> int): moment {
+  use t {
+    nanoseconds,
+    seconds,
+    minutes,
+    hours,
+    day,
+    month,
+    year,
+    weekday,
+    yearday,
+    is-dst,
+    gmt-offset,
+    timezone,
+  }
+  in
+  let timezone' on timezone = core.text.append(timezone, "\0") in
+  let timezone-ptr on timezone' = unsafe-get-content-pointer(timezone') in
+  let struct = magic alloca(int8, 56) in
+  store-int(seconds, struct);
+  store-int(minutes, add-int(struct, 4));
+  store-int(hours, add-int(struct, 8));
+  store-int(day, add-int(struct, 12));
+  store-int(sub-int(month, 1), add-int(struct, 16));
+  store-int(sub-int(year, 1900), add-int(struct, 20));
+  store-int(weekday, add-int(struct, 24));
+  store-int(yearday, add-int(struct, 28));
+  store-int(_decode-dst(is-dst), add-int(struct, 32));
+  store-int(gmt-offset, add-int(struct, 40));
+  store-int(timezone-ptr, add-int(struct, 48));
+  let _ = timezone in
+  let _ = timezone' in
+  let seconds = interpreter(struct) in
+  Moment of {seconds, nanoseconds}
+}
+
+define get-current-moment(): moment {
+  let struct = magic alloca(int8, 16) in
+  let result = magic external clock_gettime(CLOCK_REALTIME, struct) in
+  if lt-int(result, 0) {
+    print("time.time.get-current-moment(); `clock_gettime` failed\n");
+    exit(1)
+  } else {
+    let seconds: int = load-int(struct) in
+    let nanoseconds: int = load-int(add-int(struct, 8)) in
+    Moment of {nanoseconds, seconds}
+  }
+}
+
+define _mktime(ptr: int): int {
+  magic external mktime(ptr)
+}
+
+define _timegm(ptr: int): int {
+  magic external timegm(ptr)
+}
+
+define _localtime(ptr: int): int {
+  magic external localtime(ptr)
+}
+
+define _gmtime(ptr: int): int {
+  magic external gmtime(ptr)
+}
+
+define from-local-time(t: time): moment {
+  _from-time(t, _mktime)
+}
+
+define from-utc-time(t: time): moment {
+  _from-time(t, _timegm)
+}
+
+define to-local-time(t: moment): time {
+  _from-moment(t, _localtime)
+}
+
+define to-utc-time(t: moment): time {
+  _from-moment(t, _gmtime)
+}
+
+define get-current-local-time(): time {
+  let t = get-current-moment() in
+  to-local-time(t)
+}
+
+define get-current-utc-time(): time {
+  let t = get-current-moment() in
+  to-utc-time(t)
+}
+
+define _zeropad(x: int, format-text: &text): text {
+  let fmt = unsafe-get-content-pointer(format-text) in
+  let zero: int = 0 in
+  let size: int = magic external snprintf(zero, zero, fmt)(x: int) in
+  let ptr = malloc(add-int(size, add-int(1, mul-int(core.word.size, 2)))) in
+  store-int(0, ptr);
+  store-int(size, add-int(ptr, core.word.size));
+  let buffer = add-int(ptr, mul-int(core.word.size, 2)) in
+  let _: int = magic external sprintf(buffer, fmt)(x: int) in
+  magic cast(int, text, ptr)
+}
+
+define _zeropad2(x: int): text {
+  _zeropad(x, "%02ld")
+}
+
+define _zeropad9(x: int): text {
+  _zeropad(x, "%09ld")
+}
+
+define _format-nanoseconds(nanoseconds: int, digits: int): text {
+  if gt-int(digits, 0) {
+    let result = _zeropad9(nanoseconds) in
+    format(".{}", [take(digits, result)])
+  } else {
+    core.text.empty()
+  }
+}
+
+define _format-gmt-offset(offset: int): text {
+  if lt-int(offset, 0) {
+    let offset = mul-int(offset, -1) in
+    let hours = div-int(offset, mul-int(60, 60)) in
+    let minutes = div-int(rem-int(offset, mul-int(60, 60)), 60) in
+    format("-{}:{}", [_zeropad2(hours), _zeropad2(minutes)])
+  } else-if lt-int(0, offset) {
+    let hours = div-int(offset, mul-int(60, 60)) in
+    let minutes = div-int(rem-int(offset, mul-int(60, 60)), 60) in
+    format("+{}:{}", [_zeropad2(hours), _zeropad2(minutes)])
+  } else {
+    *"Z"
+  }
+}
+
+define to-ISO8601(t: time, nanosecond-digits: int): text {
+  let Time of {nanoseconds, seconds, minutes, hours, day, month, year, gmt-offset} = t in
+  format("{}-{}-{}T{}:{}:{}{}{}", [
+    show(year),
+    _zeropad2(month),
+    _zeropad2(day),
+    _zeropad2(hours),
+    _zeropad2(minutes),
+    _zeropad2(seconds),
+    _format-nanoseconds(nanoseconds, nanosecond-digits),
+    _format-gmt-offset(gmt-offset),
+  ])
+}
+
+define show-moment(m: moment): text {
+  let Moment of {seconds = s, nanoseconds = ns} = m in
+  format("{}{}", [show(s), _format-nanoseconds(ns, 9)])
+}
+
+define _abs(x: int): int {
+  if lt-int(0, x) {
+    x
+  } else {
+    mul-int(-1, x)
+  }
+}
+
+define _moment-as-int(m: moment): int {
+  let Moment of {seconds = s, nanoseconds = ns} = m in
+  if lt-int(0, s) {
+    add-int(mul-int(s, 1000000000), ns)
+  } else {
+    let s' = mul-int(-1, s) in
+    mul-int(-1, add-int(mul-int(s', 1000000000), ns))
+  }
+}
+
+define add-moment(m1: moment, m2: moment): moment {
+  let v1 = _moment-as-int(m1) in
+  let v2 = _moment-as-int(m2) in
+  let v = add-int(v1, v2) in
+  Moment of {
+    seconds = div-int(v, 1000000000),
+    nanoseconds = _abs(rem-int(v, 1000000000)),
+  }
+}
+
+define sub-moment(m1: moment, m2: moment): moment {
+  let Moment of {seconds = s2, nanoseconds = ns2} = m2 in
+  add-moment(m1, Moment of {seconds = mul-int(-1, s2), nanoseconds = ns2})
+}
+
+define now(): time {
+  get-current-local-time()
+}
+
+foreign {
+  sleep(int): int,
+}
+
+define zen(): unit {
+  let m1 = get-current-moment() in
+  let sec: int = 1 in
+  let _: int = magic external sleep(sec) in
+  let m2 = get-current-moment() in
+  let diff = sub-moment(m2, m1) in
+  printf("{}\n", [show-moment(diff)])
+}
+
+define main(): unit {
+  zen()
+}

@@ -1,0 +1,14 @@
+{
+  target {
+    time "time.nt",
+  },
+  dependency {
+    core {
+      digest "CLYi09BNOM1p1bQLJZVGfyKHSeigI-jvdUc00O7-U70",
+      mirror [
+        "https://github.com/vekatze/neut-core/raw/main/archive/0-44.tar.zst",
+      ],
+      enable-preset true,
+    },
+  },
+}
