@@ -1,8 +1,7 @@
 import {
   core.external {exit, malloc},
-  core.int.text {show},
   core.memory {load-int, store-int},
-  core.text {format, take, unsafe-from-c-string, unsafe-get-content-pointer},
+  core.text {_from-c-string, _get-content-pointer, format, take},
   core.word,
 }
 
@@ -77,7 +76,7 @@ define _from-moment(t: moment, interpreter: (int) -> int): time {
   let yearday: int = magic load(int32, add-int(localtime, 28)) in
   let is-dst = _encode-dst(magic load(int32, add-int(localtime, 32))) in
   let gmt-offset: int = magic load(int32, add-int(localtime, 40)) in
-  let timezone: text = unsafe-from-c-string(magic load(int, add-int(localtime, 48))) in
+  let timezone: text = _from-c-string(magic load(int, add-int(localtime, 48))) in
   Time of {
     nanoseconds,
     seconds,
@@ -111,7 +110,7 @@ define _from-time(t: time, interpreter: (int) -> int): moment {
   }
   in
   let timezone' on timezone = core.text.append(timezone, "\0") in
-  let timezone-ptr on timezone' = unsafe-get-content-pointer(timezone') in
+  let timezone-ptr on timezone' = _get-content-pointer(timezone') in
   let struct = magic alloca(int8, 56) in
   store-int(seconds, struct);
   store-int(minutes, add-int(struct, 4));
@@ -186,7 +185,7 @@ define get-current-utc-time(): time {
 }
 
 define _zeropad(x: int, format-text: &text): text {
-  let fmt = unsafe-get-content-pointer(format-text) in
+  let fmt = _get-content-pointer(format-text) in
   let zero: int = 0 in
   let size: int = magic external snprintf(zero, zero, fmt)(x: int) in
   let ptr = malloc(add-int(size, add-int(1, mul-int(core.word.size, 2)))) in
@@ -232,7 +231,7 @@ define _format-gmt-offset(offset: int): text {
 define to-ISO8601(t: time, nanosecond-digits: int): text {
   let Time of {nanoseconds, seconds, minutes, hours, day, month, year, gmt-offset} = t in
   format("{}-{}-{}T{}:{}:{}{}{}", [
-    show(year),
+    %ld(year),
     _zeropad2(month),
     _zeropad2(day),
     _zeropad2(hours),
@@ -245,7 +244,7 @@ define to-ISO8601(t: time, nanosecond-digits: int): text {
 
 define show-moment(m: moment): text {
   let Moment of {seconds = s, nanoseconds = ns} = m in
-  format("{}{}", [show(s), _format-nanoseconds(ns, 9)])
+  format("{}{}", [%ld(s), _format-nanoseconds(ns, 9)])
 }
 
 define _abs(x: int): int {
