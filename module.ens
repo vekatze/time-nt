@@ -4,6 +4,17 @@
       main "time.nt",
     },
   },
+  foreign {
+    input [
+      "source/foreign.c",
+    ],
+    output [
+      "foreign.o",
+    ],
+    script [
+      "{{clang}} -c -flto=thin -O2 source/foreign.c -o {{foreign}}/foreign.o",
+    ],
+  },
   dependency {
     core {
       digest "OFjMSEj_TlNUOGBp3-r8HinLhYPsu4xkChTgd91RQt0",

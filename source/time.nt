@@ -14,6 +14,8 @@ foreign {
   timegm(pointer): pointer,
   snprintf(pointer, int, pointer): int,
   sprintf(pointer, pointer): int,
+  strptime(pointer, pointer, pointer): pointer,
+  neut_time_v0_4_parse_iso8601(pointer, pointer): int,
 }
 
 constant CLOCK_REALTIME: int {
@@ -167,22 +169,22 @@ define from-timestamp-utc(t: timestamp): timespec {
   _from-timestamp(t, _timegm)
 }
 
-define from-timespec-local(t: timespec): timestamp {
+define to-timestamp-local(t: timespec): timestamp {
   _from-timespec(t, _localtime)
 }
 
-define from-timespec-utc(t: timespec): timestamp {
+define to-timestamp-utc(t: timespec): timestamp {
   _from-timespec(t, _gmtime)
 }
 
 define get-timestamp-local(): timestamp {
   let t = get-timespec() in
-  from-timespec-local(t)
+  to-timestamp-local(t)
 }
 
 define get-timestamp-utc(): timestamp {
   let t = get-timespec() in
-  from-timespec-utc(t)
+  to-timestamp-utc(t)
 }
 
 define _zeropad(x: int, format-text: &text): text {
@@ -229,7 +231,8 @@ define _format-gmt-offset(offset: int): text {
   }
 }
 
-define to-ISO8601(t: timestamp, nanosecond-digits: int): text {
+inline _to-ISO8601(ts: timespec, nanosecond-digits: int, to-timestamp: (timespec) -> timestamp): text {
+  let t = to-timestamp(ts) in
   let Timestamp of {nanoseconds, seconds, minutes, hours, day, month, year, gmt-offset} = t in
   format("{}-{}-{}T{}:{}:{}{}{}", [
     %ld(year),
@@ -241,6 +244,31 @@ define to-ISO8601(t: timestamp, nanosecond-digits: int): text {
     _format-nanoseconds(nanoseconds, nanosecond-digits),
     _format-gmt-offset(gmt-offset),
   ])
+}
+
+define to-ISO8601-local(ts: timespec, nanosecond-digits: int): text {
+  _to-ISO8601(ts, nanosecond-digits, to-timestamp-local)
+}
+
+define to-ISO8601-utc(ts: timespec, nanosecond-digits: int): text {
+  _to-ISO8601(ts, nanosecond-digits, to-timestamp-utc)
+}
+
+define from-ISO8601(datetime-text: &text): ?timespec {
+  let timespec-struct = magic alloca(int8, 16) in
+  let result: int32 =
+    magic external neut_time_v0_4_parse_iso8601(
+      _get-content-pointer(datetime-text),
+      timespec-struct,
+    )
+  in
+  let seconds = load-int(timespec-struct) in
+  let nanoseconds = load-int(add-int(timespec-struct, 8)) in
+  if ge-int32(result, 0) {
+    Pass(Timespec of {seconds, nanoseconds})
+  } else {
+    none()
+  }
 }
 
 define show-timespec(m: timespec): text {
@@ -274,15 +302,18 @@ define sub-timespec(m1: timespec, m2: timespec): timespec {
 }
 
 define now(): text {
-  to-ISO8601(get-timestamp-local(), 6)
-}
-
-foreign {
-  sleep(int): int,
+  to-ISO8601-local(get-timespec(), 6)
 }
 
 define zen(): unit {
-  printf("{}\n", [now()])
+  match from-ISO8601("2024-05-27T11:11:40.553393Z") {
+  | Pass(ts) =>
+    printf("{}\n", [
+      to-ISO8601-local(ts, 6),
+    ])
+  | Fail(_) =>
+    print("failed to parse\n")
+  }
 }
 
 define main(): unit {
