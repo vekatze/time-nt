@@ -1,5 +1,5 @@
 import {
-  core.external {exit, malloc},
+  core.external {malloc},
   core.int {abs-int},
   core.memory {load-int, store-int},
   core.text {_from-c-string, _get-content-pointer, format, take},
@@ -22,15 +22,15 @@ constant CLOCK_REALTIME: int {
   0
 }
 
-data timespec {
-| Timespec(
+data time {
+| Time(
     seconds: int,
     nanoseconds: int,
   )
 }
 
-data tick {
-| Tick(
+data time-view {
+| Time-View(
     nanoseconds: int,
     seconds: int,
     minutes: int,
@@ -62,8 +62,8 @@ define _decode-dst(x: bool): int {
   }
 }
 
-define _from-timespec(t: timespec, interpreter: (int) -> int): tick {
-  let Timespec of {seconds, nanoseconds} = t in
+define _from-time(t: time, interpreter: (int) -> int): time-view {
+  let Time of {seconds, nanoseconds} = t in
   let struct = magic alloca(int8, 16) in
   store-int(seconds, struct);
   store-int(nanoseconds, add-int(struct, 8));
@@ -80,7 +80,7 @@ define _from-timespec(t: timespec, interpreter: (int) -> int): tick {
   let is-dst = _encode-dst(magic load(int32, add-int(localtime, 32))) in
   let gmt-offset: int = magic load(int32, add-int(localtime, 40)) in
   let timezone: text = _from-c-string(magic load(int, add-int(localtime, 48))) in
-  Tick of {
+  Time-View of {
     nanoseconds,
     seconds,
     minutes,
@@ -96,7 +96,7 @@ define _from-timespec(t: timespec, interpreter: (int) -> int): tick {
   }
 }
 
-define _from-tick(t: tick, interpreter: (int) -> int): timespec {
+define _from-time-view(t: time-view, interpreter: (int) -> int): time {
   use t {
     nanoseconds,
     seconds,
@@ -129,19 +129,18 @@ define _from-tick(t: tick, interpreter: (int) -> int): timespec {
   let _ = timezone in
   let _ = timezone' in
   let seconds = interpreter(struct) in
-  Timespec of {seconds, nanoseconds}
+  Time of {seconds, nanoseconds}
 }
 
-define get-timespec(): timespec {
+define get-time(): time {
   let struct = magic alloca(int8, 16) in
   let result = magic external clock_gettime(CLOCK_REALTIME, struct) in
   if lt-int(result, 0) {
-    print("time.time.get-current-moment(); `clock_gettime` failed\n");
-    exit(1)
+    panic("time.time.get-time(); `clock_gettime` failed\n")
   } else {
     let seconds: int = load-int(struct) in
     let nanoseconds: int = load-int(add-int(struct, 8)) in
-    Timespec of {nanoseconds, seconds}
+    Time of {nanoseconds, seconds}
   }
 }
 
@@ -161,20 +160,20 @@ define _gmtime(ptr: int): int {
   magic external gmtime(ptr)
 }
 
-define from-tick-local(t: tick): timespec {
-  _from-tick(t, _mktime)
+define from-time-view-local(t: time-view): time {
+  _from-time-view(t, _mktime)
 }
 
-define from-tick-utc(t: tick): timespec {
-  _from-tick(t, _timegm)
+define from-time-view-utc(t: time-view): time {
+  _from-time-view(t, _timegm)
 }
 
-define from-timespec-local(t: timespec): tick {
-  _from-timespec(t, _localtime)
+define view-local(t: time): time-view {
+  _from-time(t, _localtime)
 }
 
-define from-timespec-utc(t: timespec): tick {
-  _from-timespec(t, _gmtime)
+define view-utc(t: time): time-view {
+  _from-time(t, _gmtime)
 }
 
 define _zeropad(x: int, format-text: &text): text {
@@ -221,9 +220,9 @@ define _format-gmt-offset(offset: int): text {
   }
 }
 
-inline _to-ISO8601(ts: timespec, nanosecond-digits: int, to-tick: (timespec) -> tick): text {
-  let t = to-tick(ts) in
-  let Tick of {nanoseconds, seconds, minutes, hours, day, month, year, gmt-offset} = t in
+inline _to-ISO8601(ts: time, nanosecond-digits: int, to-time-view: (time) -> time-view): text {
+  let t = to-time-view(ts) in
+  let Time-View of {nanoseconds, seconds, minutes, hours, day, month, year, gmt-offset} = t in
   format("{}-{}-{}T{}:{}:{}{}{}", [
     %ld(year),
     _zeropad2(month),
@@ -236,38 +235,38 @@ inline _to-ISO8601(ts: timespec, nanosecond-digits: int, to-tick: (timespec) -> 
   ])
 }
 
-define to-ISO8601-local(ts: timespec, nanosecond-digits: int): text {
-  _to-ISO8601(ts, nanosecond-digits, from-timespec-local)
+define to-ISO8601-local(ts: time, nanosecond-digits: int): text {
+  _to-ISO8601(ts, nanosecond-digits, view-local)
 }
 
-define to-ISO8601-utc(ts: timespec, nanosecond-digits: int): text {
-  _to-ISO8601(ts, nanosecond-digits, from-timespec-utc)
+define to-ISO8601-utc(ts: time, nanosecond-digits: int): text {
+  _to-ISO8601(ts, nanosecond-digits, view-utc)
 }
 
-define from-ISO8601(datetime-text: &text): ?timespec {
-  let timespec-struct = magic alloca(int8, 16) in
+define from-ISO8601(datetime-text: &text): ?time {
+  let time-struct = magic alloca(int8, 16) in
   let result: int32 =
     magic external neut_time_v0_4_parse_iso8601(
       _get-content-pointer(datetime-text),
-      timespec-struct,
+      time-struct,
     )
   in
-  let seconds = load-int(timespec-struct) in
-  let nanoseconds = load-int(add-int(timespec-struct, 8)) in
+  let seconds = load-int(time-struct) in
+  let nanoseconds = load-int(add-int(time-struct, 8)) in
   if ge-int32(result, 0) {
-    Pass(Timespec of {seconds, nanoseconds})
+    Pass(Time of {seconds, nanoseconds})
   } else {
     none()
   }
 }
 
-define show-timespec(m: timespec): text {
-  let Timespec of {seconds = s, nanoseconds = ns} = m in
+define show-time(m: time): text {
+  let Time of {seconds = s, nanoseconds = ns} = m in
   format("{}{}", [%ld(s), _format-nanoseconds(ns, 9)])
 }
 
-define _timespec-as-int(m: timespec): int {
-  let Timespec of {seconds = s, nanoseconds = ns} = m in
+define _time-as-int(m: time): int {
+  let Time of {seconds = s, nanoseconds = ns} = m in
   if lt-int(0, s) {
     add-int(mul-int(s, 1000000000), ns)
   } else {
@@ -276,31 +275,29 @@ define _timespec-as-int(m: timespec): int {
   }
 }
 
-define add-timespec(m1: timespec, m2: timespec): timespec {
-  let v1 = _timespec-as-int(m1) in
-  let v2 = _timespec-as-int(m2) in
+define add-time(m1: time, m2: time): time {
+  let v1 = _time-as-int(m1) in
+  let v2 = _time-as-int(m2) in
   let v = add-int(v1, v2) in
-  Timespec of {
+  Time of {
     seconds = div-int(v, 1000000000),
     nanoseconds = abs-int(rem-int(v, 1000000000)),
   }
 }
 
-define sub-timespec(m1: timespec, m2: timespec): timespec {
-  let Timespec of {seconds = s2, nanoseconds = ns2} = m2 in
-  add-timespec(m1, Timespec of {seconds = mul-int(-1, s2), nanoseconds = ns2})
+define sub-time(m1: time, m2: time): time {
+  let Time of {seconds = s2, nanoseconds = ns2} = m2 in
+  add-time(m1, Time of {seconds = mul-int(-1, s2), nanoseconds = ns2})
 }
 
 define now(): text {
-  to-ISO8601-local(get-timespec(), 6)
+  to-ISO8601-local(get-time(), 6)
 }
 
 define zen(): unit {
   match from-ISO8601("2024-05-27T11:11:40.553393Z") {
   | Pass(ts) =>
-    printf("{}\n", [
-      to-ISO8601-local(ts, 6),
-    ])
+    printf("{}\n", [to-ISO8601-local(ts, 6)])
   | Fail(_) =>
     print("failed to parse\n")
   }
