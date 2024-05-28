@@ -3,7 +3,7 @@
 #include <time.h>
 
 int neut_time_v0_4_parse_iso8601(const char *datetime_str, struct timespec *ts) {
-  struct tm tm;
+  struct tm tm = {0};
   char *rest = strptime(datetime_str, "%Y-%m-%dT%H:%M:%S", &tm);
   if (rest == NULL) {
     return -1;
@@ -38,7 +38,7 @@ int neut_time_v0_4_parse_iso8601(const char *datetime_str, struct timespec *ts) 
     } else {
       return -1;
     }
-    struct tm mini_tm;
+    struct tm mini_tm = {0};
     char *trail = NULL;
     trail = trail ?: strptime(rest, "%H:%M", &mini_tm);
     trail = trail ?: strptime(rest, "%H%M", &mini_tm);
