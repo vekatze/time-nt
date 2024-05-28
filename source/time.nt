@@ -29,8 +29,8 @@ data time {
   )
 }
 
-data time-view {
-| Time-View(
+data clock {
+| Clock(
     nanoseconds: int,
     seconds: int,
     minutes: int,
@@ -62,7 +62,7 @@ define _decode-dst(x: bool): int {
   }
 }
 
-define _from-time(t: time, interpreter: (int) -> int): time-view {
+define _from-time(t: time, interpreter: (int) -> int): clock {
   let Time of {seconds, nanoseconds} = t in
   let struct = magic alloca(int8, 16) in
   store-int(seconds, struct);
@@ -80,7 +80,7 @@ define _from-time(t: time, interpreter: (int) -> int): time-view {
   let is-dst = _encode-dst(magic load(int32, add-int(localtime, 32))) in
   let gmt-offset: int = magic load(int32, add-int(localtime, 40)) in
   let timezone: text = _from-c-string(magic load(int, add-int(localtime, 48))) in
-  Time-View of {
+  Clock of {
     nanoseconds,
     seconds,
     minutes,
@@ -96,7 +96,7 @@ define _from-time(t: time, interpreter: (int) -> int): time-view {
   }
 }
 
-define _from-time-view(t: time-view, interpreter: (int) -> int): time {
+define _from-clock(t: clock, interpreter: (int) -> int): time {
   use t {
     nanoseconds,
     seconds,
@@ -160,19 +160,19 @@ define _gmtime(ptr: int): int {
   magic external gmtime(ptr)
 }
 
-define from-time-view-local(t: time-view): time {
-  _from-time-view(t, _mktime)
+define from-local-clock(t: clock): time {
+  _from-clock(t, _mktime)
 }
 
-define from-time-view-UTC(t: time-view): time {
-  _from-time-view(t, _timegm)
+define from-UTC-clock(t: clock): time {
+  _from-clock(t, _timegm)
 }
 
-define view-local(t: time): time-view {
+define to-local-clock(t: time): clock {
   _from-time(t, _localtime)
 }
 
-define view-UTC(t: time): time-view {
+define to-UTC-clock(t: time): clock {
   _from-time(t, _gmtime)
 }
 
@@ -220,9 +220,9 @@ define _format-gmt-offset(offset: int): text {
   }
 }
 
-inline _to-ISO8601(ts: time, nanosecond-digits: int, to-time-view: (time) -> time-view): text {
-  let t = to-time-view(ts) in
-  let Time-View of {nanoseconds, seconds, minutes, hours, day, month, year, gmt-offset} = t in
+inline _to-ISO8601(ts: time, nanosecond-digits: int, to-clock: (time) -> clock): text {
+  let t = to-clock(ts) in
+  let Clock of {nanoseconds, seconds, minutes, hours, day, month, year, gmt-offset} = t in
   format("{}-{}-{}T{}:{}:{}{}{}", [
     %ld(year),
     _zeropad2(month),
@@ -236,11 +236,11 @@ inline _to-ISO8601(ts: time, nanosecond-digits: int, to-time-view: (time) -> tim
 }
 
 define to-ISO8601-local(ts: time, nanosecond-digits: int): text {
-  _to-ISO8601(ts, nanosecond-digits, view-local)
+  _to-ISO8601(ts, nanosecond-digits, to-local-clock)
 }
 
 define to-ISO8601-UTC(ts: time, nanosecond-digits: int): text {
-  _to-ISO8601(ts, nanosecond-digits, view-UTC)
+  _to-ISO8601(ts, nanosecond-digits, to-UTC-clock)
 }
 
 define from-ISO8601(datetime-text: &text): ?time {
@@ -326,7 +326,7 @@ define now(): text {
 
 define zen(): unit {
   let test-ts = Time of {seconds = 123453234, nanoseconds = 56789} in
-  let Time-View of {minutes, seconds} = view-UTC(test-ts) in
+  let Clock of {minutes, seconds} = to-UTC-clock(test-ts) in
   printf("{}\n", [to-ISO8601-UTC(test-ts, 6)]);
   printf("minutes: {}, seconds: {}\n", [%ld(minutes), %ld(seconds)]);
   match from-ISO8601("2024-05-27T11:11:40.553393+09:00") {
