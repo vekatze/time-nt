@@ -254,7 +254,7 @@ define from-ISO8601(datetime-text: &text): ?time {
   let seconds = load-int(time-struct) in
   let nanoseconds = load-int(add-int(time-struct, 8)) in
   if ge-int32(result, 0) {
-    Pass(Time of {seconds, nanoseconds})
+    Right(Time of {seconds, nanoseconds})
   } else {
     none()
   }
@@ -330,9 +330,9 @@ define zen(): unit {
   printf("{}\n", [to-ISO8601-UTC(test-ts, 6)]);
   printf("minutes: {}, seconds: {}\n", [%ld(minutes), %ld(seconds)]);
   match from-ISO8601("2024-05-27T11:11:40.553393+09:00") {
-  | Pass(ts) =>
+  | Right(ts) =>
     printf("{}\n", [to-ISO8601-UTC(ts, 6)])
-  | Fail(_) =>
+  | Left(_) =>
     print("failed to parse\n")
   }
 }
