@@ -290,11 +290,11 @@ define sub-time(m1: time, m2: time): time {
   add-time(m1, Time of {seconds = mul-int(-1, s2), nanoseconds = ns2})
 }
 
-inline _cmp-time(m1: time, m2: time, cmp: (int, int) -> bool): bool {
+inline _cmp-time(m1: time, m2: time, !cmp: (int, int) -> bool): bool {
   let Time of {seconds = s1, nanoseconds = ns1} = m1 in
   let Time of {seconds = s2, nanoseconds = ns2} = m2 in
-  if cmp(s1, s2) {
-    cmp(ns1, ns2)
+  if !cmp(s1, s2) {
+    !cmp(ns1, ns2)
   } else {
     False
   }
@@ -325,9 +325,9 @@ define now(): text {
 }
 
 define zen(): unit {
-  let test-ts = Time of {seconds = 123453234, nanoseconds = 56789} in
-  let Clock of {minutes, seconds} = to-UTC-clock(test-ts) in
-  printf("{}\n", [to-ISO8601-UTC(test-ts, 6)]);
+  let !test-ts = Time of {seconds = 123453234, nanoseconds = 56789} in
+  let Clock of {minutes, seconds} = to-UTC-clock(!test-ts) in
+  printf("{}\n", [to-ISO8601-UTC(!test-ts, 6)]);
   printf("minutes: {}, seconds: {}\n", [%ld(minutes), %ld(seconds)]);
   match from-ISO8601("2024-05-27T11:11:40.553393+09:00") {
   | Right(ts) =>
