@@ -199,7 +199,7 @@ define _zeropad9(x: int): text {
 define _format-nanoseconds(nanoseconds: int, digits: int): text {
   if gt-int(digits, 0) {
     let result = _zeropad9(nanoseconds) in
-    format(".{}", [take(digits, result)])
+    format(".{}", [take(result, digits)])
   } else {
     core.text.empty()
   }
