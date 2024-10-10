@@ -55,12 +55,12 @@ define to-local-clock(t: time): clock
 // time => UTC clock (i.e. gmt-offset == 0). Uses gmtime(3) internally.
 define to-UTC-clock(t: time): clock
 
-// clock => time, respecting the timezone offset.
-// Uses mktime(3) internally.
+// clock => local time. The timezone info in the `clock` is ignored.
+// Essentially the same as mktime(3).
 define from-local-clock(c: clock): time
 
-// clock => time, ignoring the timezone offset.
-// Uses timegm(3) internally.
+// clock => UTC time. The timezone info in the `clock` is ignored.
+// Essentially the same as timegm(3).
 define from-UTC-clock(c: clock): time
 
 // Converts a UNIX timestamp into a text such as "1728478571.524727000".
