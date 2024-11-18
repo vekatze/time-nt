@@ -1,30 +1,55 @@
 import {
+  core.c-int {c-int, from-c-int},
+  core.c-size {C-Size, c-size},
   core.c-string {c-string, from-c-string, to-c-string},
   core.external {malloc},
   core.int {abs-int},
   core.int.show {show-int},
   core.magic,
   core.memory {load-int, store-int},
-  core.pointer {_Pointer, pointer, shift},
+  core.pointer {null-pointer, shift},
   core.system {panic},
   core.text {format, take},
   core.word,
 }
 
-foreign {
-  clock_gettime(int, pointer): int,
-  localtime(pointer): pointer,
-  gmtime(pointer): pointer,
-  mktime(pointer): pointer,
-  timegm(pointer): pointer,
-  snprintf(pointer, int, pointer): int,
-  sprintf(pointer, pointer): int,
-  strptime(pointer, pointer, pointer): pointer,
-  neut_time_v0_4_parse_iso8601(pointer, pointer): int,
+constant clockid-t: type {
+  introspect arch {
+  | arm64 =>
+    c-int
+  | amd64 =>
+    c-int
+  }
 }
 
-constant CLOCK_REALTIME: int {
-  0
+constant _c-time-t: type {
+  introspect arch {
+  | arm64 =>
+    int64
+  | amd64 =>
+    int64
+  }
+}
+
+data c-time-t {
+| C-Time(_c-time-t)
+}
+
+foreign {
+  clock_gettime(clockid-t, pointer): c-int,
+  localtime(pointer): pointer,
+  gmtime(pointer): pointer,
+  mktime(pointer): c-time-t,
+  timegm(pointer): c-time-t,
+  snprintf(pointer, c-size, pointer): c-int,
+  sprintf(pointer, pointer): c-int,
+  strptime(pointer, pointer, pointer): pointer,
+  neut_time_v0_4_parse_iso8601(pointer, pointer): int32,
+  neut_time_v0_4_CLOCK_REALTIME(): clockid-t,
+}
+
+constant CLOCK_REALTIME: clockid-t {
+  magic external neut_time_v0_4_CLOCK_REALTIME()
 }
 
 data time {
@@ -67,24 +92,24 @@ define _decode-dst(x: bool): int {
   }
 }
 
-define _from-time(t: time, interpreter: (pointer) -> int): clock {
+define _from-time(t: time, interpreter: (pointer) -> pointer): clock {
   let Time of {seconds, nanoseconds} = t in
-  let struct = _Pointer(magic alloca(int8, 16)) in
+  let struct = magic alloca(int8, 16) in
   store-int(seconds, struct);
   store-int(nanoseconds, shift(struct, 8));
   let localtime = interpreter(struct) in
   let nanoseconds: int = load-int(shift(struct, 8)) in
   let seconds: int = magic load(int32, localtime) in
-  let minutes: int = magic load(int32, add-int(localtime, 4)) in
-  let hours: int = magic load(int32, add-int(localtime, 8)) in
-  let day: int = magic load(int32, add-int(localtime, 12)) in
-  let month: int = add-int(1, magic load(int32, add-int(localtime, 16))) in
-  let year: int = add-int(1900, magic load(int32, add-int(localtime, 20))) in
-  let weekday: int = magic load(int32, add-int(localtime, 24)) in
-  let yearday: int = magic load(int32, add-int(localtime, 28)) in
-  let is-dst = _encode-dst(magic load(int32, add-int(localtime, 32))) in
-  let gmt-offset: int = magic load(int32, add-int(localtime, 40)) in
-  let timezone: text = from-c-string(magic load(int, add-int(localtime, 48))) in
+  let minutes: int = magic load(int32, shift(localtime, 4)) in
+  let hours: int = magic load(int32, shift(localtime, 8)) in
+  let day: int = magic load(int32, shift(localtime, 12)) in
+  let month: int = add-int(1, magic load(int32, shift(localtime, 16))) in
+  let year: int = add-int(1900, magic load(int32, shift(localtime, 20))) in
+  let weekday: int = magic load(int32, shift(localtime, 24)) in
+  let yearday: int = magic load(int32, shift(localtime, 28)) in
+  let is-dst = _encode-dst(magic load(int32, shift(localtime, 32))) in
+  let gmt-offset: int = magic load(int32, shift(localtime, 40)) in
+  let timezone: text = from-c-string(magic load(int, shift(localtime, 48))) in
   Clock of {
     nanoseconds,
     seconds,
@@ -101,7 +126,7 @@ define _from-time(t: time, interpreter: (pointer) -> int): clock {
   }
 }
 
-define _from-clock(t: clock, interpreter: (pointer) -> int): time {
+define _from-clock(t: clock, interpreter: (pointer) -> c-time-t): time {
   use t {
     nanoseconds,
     seconds,
@@ -119,7 +144,7 @@ define _from-clock(t: clock, interpreter: (pointer) -> int): time {
   in
   pin timezone = timezone in
   pin timezone' = to-c-string(timezone) in
-  let struct = _Pointer(magic alloca(int8, 56)) in
+  let struct = magic alloca(int8, 56) in
   store-int(seconds, struct);
   store-int(minutes, shift(struct, 4));
   store-int(hours, shift(struct, 8));
@@ -133,13 +158,13 @@ define _from-clock(t: clock, interpreter: (pointer) -> int): time {
   store-int(core.magic.cast(&c-string, int, timezone'), shift(struct, 48));
   let _ = timezone in
   let _ = timezone' in
-  let seconds = interpreter(struct) in
+  let C-Time(seconds) = interpreter(struct) in
   Time of {seconds, nanoseconds}
 }
 
 define get-time(): time {
-  let struct = _Pointer(magic alloca(int8, 16)) in
-  let result = magic external clock_gettime(CLOCK_REALTIME, struct) in
+  let struct = magic alloca(int8, 16) in
+  let result = from-c-int(magic external clock_gettime(CLOCK_REALTIME, struct)) in
   if lt-int(result, 0) {
     panic("time.time.get-time(); `clock_gettime` failed\n")
   } else {
@@ -149,19 +174,19 @@ define get-time(): time {
   }
 }
 
-define _mktime(ptr: pointer): int {
+define _mktime(ptr: pointer): c-time-t {
   magic external mktime(ptr)
 }
 
-define _timegm(ptr: pointer): int {
+define _timegm(ptr: pointer): c-time-t {
   magic external timegm(ptr)
 }
 
-define _localtime(ptr: pointer): int {
+define _localtime(ptr: pointer): pointer {
   magic external localtime(ptr)
 }
 
-define _gmtime(ptr: pointer): int {
+define _gmtime(ptr: pointer): pointer {
   magic external gmtime(ptr)
 }
 
@@ -183,13 +208,13 @@ define to-UTC-clock(t: time): clock {
 
 define _zeropad(x: int, format-text: &text): text {
   pin fmt = to-c-string(format-text) in
-  let zero: int = 0 in
-  let size: int = magic external snprintf(zero, zero, fmt)(x: int) in
-  let ptr = malloc(add-int(size, add-int(1, mul-int(core.word.size, 2)))) in
+  let fmt = magic cast(&c-string, pointer, fmt) in
+  let size = from-c-int(magic external snprintf(null-pointer, C-Size(0), fmt)(x: int)) in
+  let ptr = malloc(C-Size(add-int(size, add-int(1, mul-int(core.word.size, 2))))) in
   store-int(0, ptr);
   store-int(size, shift(ptr, core.word.size));
   let buffer = shift(ptr, mul-int(core.word.size, 2)) in
-  let _: int = magic external sprintf(buffer, fmt)(x: int) in
+  let _ = magic external sprintf(buffer, fmt)(x: int) in
   magic cast(pointer, text, ptr)
 }
 
@@ -249,8 +274,9 @@ define to-ISO8601-UTC(ts: time, nanosecond-digits: int): text {
 }
 
 define from-ISO8601(datetime-text: &text): ?time {
-  let time-struct = _Pointer(magic alloca(int8, 16)) in
+  let time-struct = magic alloca(int8, 16) in
   pin datetime-text' = to-c-string(datetime-text) in
+  let datetime-text' = magic cast(&c-string, pointer, datetime-text') in
   let result: int32 = magic external neut_time_v0_4_parse_iso8601(datetime-text', time-struct) in
   let seconds = load-int(time-struct) in
   let nanoseconds = load-int(shift(time-struct, 8)) in

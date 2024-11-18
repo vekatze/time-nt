@@ -7,7 +7,12 @@
 #include <string.h>
 #include <time.h>
 
-int neut_time_v0_4_parse_iso8601(const char *datetime_str, struct timespec *ts) {
+__attribute__((always_inline))
+clockid_t neut_time_v0_4_CLOCK_REALTIME() {
+  return CLOCK_REALTIME;
+}
+
+int32_t neut_time_v0_4_parse_iso8601(const char *datetime_str, struct timespec *ts) {
   struct tm tm = {0};
   char *rest = strptime(datetime_str, "%Y-%m-%dT%H:%M:%S", &tm);
   if (rest == NULL) {
