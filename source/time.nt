@@ -14,7 +14,7 @@ import {
 }
 
 constant clockid-t: type {
-  introspect arch {
+  introspect architecture {
   | arm64 =>
     c-int
   | amd64 =>
@@ -23,7 +23,7 @@ constant clockid-t: type {
 }
 
 constant _c-time-t: type {
-  introspect arch {
+  introspect architecture {
   | arm64 =>
     int64
   | amd64 =>
@@ -209,7 +209,7 @@ define to-UTC-clock(t: time): clock {
 define _zeropad(x: int, format-text: &text): text {
   pin fmt = to-c-string(format-text) in
   let fmt = magic cast(&c-string, pointer, fmt) in
-  let size = from-c-int(magic external snprintf(null-pointer, C-Size(0), fmt)(x: int)) in
+  let size = from-c-int(magic external snprintf(null-pointer, 0, fmt)(x: int)) in
   let ptr = malloc(C-Size(add-int(size, add-int(1, mul-int(core.word.size, 2))))) in
   store-int(0, ptr);
   store-int(size, shift(ptr, core.word.size));
