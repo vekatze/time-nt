@@ -1,6 +1,6 @@
 import {
   core.c-int {c-int, from-c-int},
-  core.c-size {C-Size, c-size},
+  core.c-size {C-Size, c-size, from-c-size},
   core.c-string {c-string, from-c-string, to-c-string},
   core.external {malloc},
   core.int {abs-int},
@@ -37,15 +37,20 @@ data c-time-t {
 
 foreign {
   clock_gettime(clockid-t, pointer): c-int,
-  localtime(pointer): pointer,
-  gmtime(pointer): pointer,
+  localtime_r(pointer, pointer): pointer,
+  gmtime_r(pointer, pointer): pointer,
   mktime(pointer): c-time-t,
   timegm(pointer): c-time-t,
   snprintf(pointer, c-size, pointer): c-int,
   sprintf(pointer, pointer): c-int,
   strptime(pointer, pointer, pointer): pointer,
+  neut_time_v0_4_sizeof_struct_tm(): c-size,
   neut_time_v0_4_parse_iso8601(pointer, pointer): int32,
   neut_time_v0_4_CLOCK_REALTIME(): clockid-t,
+}
+
+constant SIZEOF_STRUCT_TM: c-size {
+  magic external neut_time_v0_4_sizeof_struct_tm()
 }
 
 constant CLOCK_REALTIME: clockid-t {
@@ -92,12 +97,14 @@ define _decode-dst(x: bool): int {
   }
 }
 
-define _from-time(t: time, interpreter: (pointer) -> pointer): clock {
+define _from-time(t: time, interpreter: (pointer, pointer) -> pointer): clock {
   let Time of {seconds, nanoseconds} = t in
   let struct = magic alloca(int8, 16) in
   store-int(seconds, struct);
   store-int(nanoseconds, shift(struct, 8));
-  let localtime = interpreter(struct) in
+  let size = from-c-size(SIZEOF_STRUCT_TM) in
+  let buffer = magic alloca(int8, size) in
+  let localtime = interpreter(struct, buffer) in
   let nanoseconds: int = load-int(shift(struct, 8)) in
   let seconds: int = magic load(int32, localtime) in
   let minutes: int = magic load(int32, shift(localtime, 4)) in
@@ -182,12 +189,12 @@ define _timegm(ptr: pointer): c-time-t {
   magic external timegm(ptr)
 }
 
-define _localtime(ptr: pointer): pointer {
-  magic external localtime(ptr)
+define _localtime_r(ptr: pointer, buffer: pointer): pointer {
+  magic external localtime_r(ptr, buffer)
 }
 
-define _gmtime(ptr: pointer): pointer {
-  magic external gmtime(ptr)
+define _gmtime_r(ptr: pointer, buffer: pointer): pointer {
+  magic external gmtime_r(ptr, buffer)
 }
 
 define from-local-clock(t: clock): time {
@@ -199,11 +206,11 @@ define from-UTC-clock(t: clock): time {
 }
 
 define to-local-clock(t: time): clock {
-  _from-time(t, _localtime)
+  _from-time(t, _localtime_r)
 }
 
 define to-UTC-clock(t: time): clock {
-  _from-time(t, _gmtime)
+  _from-time(t, _gmtime_r)
 }
 
 define _zeropad(x: int, format-text: &text): text {
@@ -353,13 +360,14 @@ define now(): text {
 
 define zen(): unit {
   let !test-ts = Time of {seconds = 123453234, nanoseconds = 56789} in
-  let Clock of {minutes, seconds} = to-UTC-clock(!test-ts) in
+  let Clock of {minutes, seconds} = to-UTC-clock(from-UTC-clock(to-UTC-clock(!test-ts))) in
   printf("{}\n", [to-ISO8601-UTC(!test-ts, 6)]);
   printf("minutes: {}, seconds: {}\n", [show-int(minutes), show-int(seconds)]);
   printf("now: {}\n", [now()]);
   match from-ISO8601("2024-05-27T11:11:40.553393+09:00") {
-  | Right(ts) =>
-    printf("{}\n", [to-ISO8601-UTC(ts, 6)])
+  | Right(!ts) =>
+    let calc-t = sub-time(add-time(!ts, !ts), !ts) in
+    printf("{}\n", [to-ISO8601-UTC(calc-t, 6)])
   | Left(_) =>
     print("failed to parse\n")
   }

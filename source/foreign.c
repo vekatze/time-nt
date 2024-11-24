@@ -8,6 +8,12 @@
 #include <time.h>
 
 __attribute__((always_inline))
+size_t neut_time_v0_4_sizeof_struct_tm() {
+  return sizeof(struct tm);
+}
+
+
+__attribute__((always_inline))
 clockid_t neut_time_v0_4_CLOCK_REALTIME() {
   return CLOCK_REALTIME;
 }
