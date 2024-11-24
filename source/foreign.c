@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <stdint.h>
 
 __attribute__((always_inline))
 size_t neut_time_v0_4_sizeof_struct_tm() {
