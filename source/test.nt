@@ -1,0 +1,7 @@
+import {
+  this.time {zen},
+}
+
+define main(): unit {
+  zen()
+}
