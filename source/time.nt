@@ -64,6 +64,29 @@ data time {
   )
 }
 
+constant _c-long: type {
+  introspect architecture {
+  | amd64 =>
+    introspect operating-system {
+    | linux =>
+      int64
+    | darwin =>
+      int64
+    }
+  | arm64 =>
+    introspect operating-system {
+    | linux =>
+      int64
+    | darwin =>
+      int64
+    }
+  }
+}
+
+data c-long {
+| _C-Long(_c-long)
+}
+
 data clock {
 | Clock(
     nanoseconds: int,
@@ -76,7 +99,7 @@ data clock {
     weekday: int,
     yearday: int,
     is-dst: bool,
-    gmt-offset: int,
+    gmt-offset: c-long,
     timezone: text,
   )
 }
@@ -97,6 +120,38 @@ define _decode-dst(x: bool): int {
   }
 }
 
+define _zext-load-int32(address: pointer): int {
+  zext-int32-int(magic load(int32, address))
+}
+
+define _load-c-long(address: pointer): c-long {
+  magic load(c-long, address)
+}
+
+define _store-c-long(value: c-long, address: pointer): unit {
+  magic store(c-long, value, address)
+}
+
+inline int-from-c-long(x: c-long): int {
+  let _C-Long(x) = x in
+  introspect architecture {
+  | amd64 =>
+    introspect operating-system {
+    | linux =>
+      x
+    | darwin =>
+      x
+    }
+  | arm64 =>
+    introspect operating-system {
+    | linux =>
+      x
+    | darwin =>
+      x
+    }
+  }
+}
+
 define _from-time(t: time, interpreter: (pointer, pointer) -> pointer): clock {
   let Time of {seconds, nanoseconds} = t in
   let struct = magic alloca(int8, 16) in
@@ -105,18 +160,18 @@ define _from-time(t: time, interpreter: (pointer, pointer) -> pointer): clock {
   let size = from-c-size(SIZEOF_STRUCT_TM) in
   let buffer = magic alloca(int8, size) in
   let localtime = interpreter(struct, buffer) in
-  let nanoseconds: int = load-int(shift(struct, 8)) in
-  let seconds: int = magic load(int32, localtime) in
-  let minutes: int = magic load(int32, shift(localtime, 4)) in
-  let hours: int = magic load(int32, shift(localtime, 8)) in
-  let day: int = magic load(int32, shift(localtime, 12)) in
-  let month: int = add-int(1, magic load(int32, shift(localtime, 16))) in
-  let year: int = add-int(1900, magic load(int32, shift(localtime, 20))) in
-  let weekday: int = magic load(int32, shift(localtime, 24)) in
-  let yearday: int = magic load(int32, shift(localtime, 28)) in
-  let is-dst = _encode-dst(magic load(int32, shift(localtime, 32))) in
-  let gmt-offset: int = magic load(int32, shift(localtime, 40)) in
-  let timezone: text = from-c-string(magic load(int, shift(localtime, 48))) in
+  let nanoseconds = load-int(shift(struct, 8)) in
+  let seconds = _zext-load-int32(localtime) in
+  let minutes = _zext-load-int32(shift(localtime, 4)) in
+  let hours = _zext-load-int32(shift(localtime, 8)) in
+  let day = _zext-load-int32(shift(localtime, 12)) in
+  let month = add-int(1, _zext-load-int32(shift(localtime, 16))) in
+  let year = add-int(1900, _zext-load-int32(shift(localtime, 20))) in
+  let weekday = _zext-load-int32(shift(localtime, 24)) in
+  let yearday = _zext-load-int32(shift(localtime, 28)) in
+  let is-dst = _encode-dst(_zext-load-int32(shift(localtime, 32))) in
+  let gmt-offset = _load-c-long(shift(localtime, 40)) in
+  let timezone = from-c-string(magic cast(pointer, &c-string, magic load(pointer, shift(localtime, 48)))) in
   Clock of {
     nanoseconds,
     seconds,
@@ -161,7 +216,7 @@ define _from-clock(t: clock, interpreter: (pointer) -> c-time-t): time {
   store-int(weekday, shift(struct, 24));
   store-int(yearday, shift(struct, 28));
   store-int(_decode-dst(is-dst), shift(struct, 32));
-  store-int(gmt-offset, shift(struct, 40));
+  _store-c-long(gmt-offset, shift(struct, 40));
   store-int(core.magic.cast(&c-string, int, timezone'), shift(struct, 48));
   let _ = timezone in
   let _ = timezone' in
@@ -268,7 +323,7 @@ inline _to-ISO8601(ts: time, nanosecond-digits: int, to-clock: (time) -> clock):
     _zeropad2(minutes),
     _zeropad2(seconds),
     _format-nanoseconds(nanoseconds, nanosecond-digits),
-    _format-gmt-offset(gmt-offset),
+    _format-gmt-offset(int-from-c-long(gmt-offset)),
   ])
 }
 
