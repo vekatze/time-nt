@@ -5,7 +5,7 @@
 ## Installation
 
 ```sh
-neut get time https://github.com/vekatze/time-nt/raw/main/archive/0-4-24.tar.zst
+neut get time https://github.com/vekatze/time-nt/raw/main/archive/0-4-25.tar.zst
 ```
 
 ## Types
