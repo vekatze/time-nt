@@ -64,7 +64,7 @@ data time {
   )
 }
 
-constant _c-long: type {
+constant __c-long: type {
   introspect architecture {
   | amd64 =>
     introspect operating-system {
@@ -83,8 +83,8 @@ constant _c-long: type {
   }
 }
 
-data c-long {
-| _C-Long(_c-long)
+data _c-long {
+| _C-Long(__c-long)
 }
 
 data clock {
@@ -99,7 +99,7 @@ data clock {
     weekday: int,
     yearday: int,
     is-dst: bool,
-    gmt-offset: c-long,
+    gmt-offset: int,
     timezone: text,
   )
 }
@@ -124,15 +124,7 @@ define _zext-load-int32(address: pointer): int {
   zext-int32-int(magic load(int32, address))
 }
 
-define _load-c-long(address: pointer): c-long {
-  magic load(c-long, address)
-}
-
-define _store-c-long(value: c-long, address: pointer): unit {
-  magic store(c-long, value, address)
-}
-
-inline int-from-c-long(x: c-long): int {
+inline _int-from-c-long(x: _c-long): int {
   let _C-Long(x) = x in
   introspect architecture {
   | amd64 =>
@@ -150,6 +142,10 @@ inline int-from-c-long(x: c-long): int {
       x
     }
   }
+}
+
+define _load-c-long(address: pointer): int {
+  _int-from-c-long(magic load(_c-long, address))
 }
 
 define _from-time(t: time, interpreter: (pointer, pointer) -> pointer): clock {
@@ -216,7 +212,7 @@ define _from-clock(t: clock, interpreter: (pointer) -> c-time-t): time {
   store-int(weekday, shift(struct, 24));
   store-int(yearday, shift(struct, 28));
   store-int(_decode-dst(is-dst), shift(struct, 32));
-  _store-c-long(gmt-offset, shift(struct, 40));
+  store-int(gmt-offset, shift(struct, 40));
   store-int(core.magic.cast(&c-string, int, timezone'), shift(struct, 48));
   let _ = timezone in
   let _ = timezone' in
@@ -323,7 +319,7 @@ inline _to-ISO8601(ts: time, nanosecond-digits: int, to-clock: (time) -> clock):
     _zeropad2(minutes),
     _zeropad2(seconds),
     _format-nanoseconds(nanoseconds, nanosecond-digits),
-    _format-gmt-offset(int-from-c-long(gmt-offset)),
+    _format-gmt-offset(gmt-offset),
   ])
 }
 
