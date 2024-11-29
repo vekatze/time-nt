@@ -1,5 +1,6 @@
 import {
   core.c-int {c-int, from-c-int},
+  core.c-long {c-long, from-c-long},
   core.c-size {C-Size, c-size, from-c-size},
   core.c-string {c-string, from-c-string, to-c-string},
   core.external {malloc},
@@ -13,7 +14,7 @@ import {
   core.word,
 }
 
-constant clockid-t: type {
+inline clockid-t: type {
   introspect architecture {
   | arm64 =>
     c-int
@@ -22,7 +23,7 @@ constant clockid-t: type {
   }
 }
 
-constant _c-time-t: type {
+inline _c-time-t: type {
   introspect architecture {
   | arm64 =>
     int64
@@ -49,12 +50,16 @@ foreign {
   neut_time_v0_4_CLOCK_REALTIME(): clockid-t,
 }
 
-constant SIZEOF_STRUCT_TM: c-size {
-  magic external neut_time_v0_4_sizeof_struct_tm()
+inline SIZEOF_STRUCT_TM: c-size {
+  magic opaque-value {
+    magic external neut_time_v0_4_sizeof_struct_tm()
+  }
 }
 
-constant CLOCK_REALTIME: clockid-t {
-  magic external neut_time_v0_4_CLOCK_REALTIME()
+inline CLOCK_REALTIME: clockid-t {
+  magic opaque-value {
+    magic external neut_time_v0_4_CLOCK_REALTIME()
+  }
 }
 
 data time {
@@ -62,29 +67,6 @@ data time {
     seconds: int,
     nanoseconds: int,
   )
-}
-
-constant __c-long: type {
-  introspect architecture {
-  | amd64 =>
-    introspect operating-system {
-    | linux =>
-      int64
-    | darwin =>
-      int64
-    }
-  | arm64 =>
-    introspect operating-system {
-    | linux =>
-      int64
-    | darwin =>
-      int64
-    }
-  }
-}
-
-data _c-long {
-| _C-Long(__c-long)
 }
 
 data clock {
@@ -124,28 +106,8 @@ define _zext-load-int32(address: pointer): int {
   zext-int32-int(magic load(int32, address))
 }
 
-inline _int-from-c-long(x: _c-long): int {
-  let _C-Long(x) = x in
-  introspect architecture {
-  | amd64 =>
-    introspect operating-system {
-    | linux =>
-      x
-    | darwin =>
-      x
-    }
-  | arm64 =>
-    introspect operating-system {
-    | linux =>
-      x
-    | darwin =>
-      x
-    }
-  }
-}
-
 define _load-c-long(address: pointer): int {
-  _int-from-c-long(magic load(_c-long, address))
+  from-c-long(magic load(c-long, address))
 }
 
 define _from-time(t: time, interpreter: (pointer, pointer) -> pointer): clock {
@@ -341,7 +303,7 @@ define from-ISO8601(datetime-text: &text): ?time {
   if ge-int32(result, 0) {
     Right(Time of {seconds, nanoseconds})
   } else {
-    none()
+    none
   }
 }
 
