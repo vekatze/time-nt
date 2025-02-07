@@ -9,8 +9,8 @@ import {
   core.magic,
   core.memory {load-int, store-int},
   core.pointer {null-pointer, shift},
-  core.system {panic},
   core.text {format, take},
+  core.trick {unsafe-panic},
   core.word,
 }
 
@@ -186,7 +186,7 @@ define get-time(): time {
   let struct = magic alloca(int8, 16) in
   let result = from-c-int(magic external clock_gettime(CLOCK_REALTIME, struct)) in
   if lt-int(result, 0) {
-    panic("time.time.get-time(); `clock_gettime` failed\n")
+    unsafe-panic("time.time.get-time(); `clock_gettime` failed\n")
   } else {
     let seconds: int = load-int(struct) in
     let nanoseconds: int = load-int(shift(struct, 8)) in
