@@ -147,21 +147,22 @@ define _from-time(t: time, interpreter: (pointer, pointer) -> pointer): clock {
 }
 
 define _from-clock(t: clock, interpreter: (pointer) -> c-time-t): time {
-  use t {
-    nanoseconds,
-    seconds,
-    minutes,
-    hours,
-    day,
-    month,
-    year,
-    weekday,
-    yearday,
-    is-dst,
-    gmt-offset,
-    timezone,
-  }
-  in
+  let
+    Clock of {
+      nanoseconds,
+      seconds,
+      minutes,
+      hours,
+      day,
+      month,
+      year,
+      weekday,
+      yearday,
+      is-dst,
+      gmt-offset,
+      timezone,
+    }
+  = t in
   pin timezone = timezone in
   pin timezone' = to-c-string(timezone) in
   let struct = magic alloca(int8, 56) in
