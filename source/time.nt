@@ -310,9 +310,9 @@ define from-ISO8601(datetime-text: &text): ?time {
   }
 }
 
-define show-time(m: time): text {
+define show-time(m: time, decimals: int): text {
   let Time of {seconds := s, nanoseconds := ns} = m;
-  format("{}{}", [show-int(s), _format-nanoseconds(ns, 9)])
+  format("{}{}", [show-int(s), _format-nanoseconds(ns, decimals)])
 }
 
 define _time-as-int(m: time): int {
