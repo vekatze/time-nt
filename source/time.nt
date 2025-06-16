@@ -375,6 +375,8 @@ define now(): text {
 }
 
 define zen(): unit {
+  pin t = show-time(get-time(), 3);
+  print-line(t);
   let !test-ts = Time of {seconds := 123453234, nanoseconds := 56789};
   let Clock of {minutes, seconds} = to-UTC-clock(from-UTC-clock(to-UTC-clock(!test-ts)));
   pin time-text = to-ISO8601-UTC(!test-ts, 6);
