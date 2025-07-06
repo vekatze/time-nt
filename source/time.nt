@@ -252,7 +252,7 @@ define _zeropad9(x: int): text {
 define _format-nanoseconds(nanoseconds: int, digits: int): text {
   if gt-int(digits, 0) {
     let result = _zeropad9(nanoseconds);
-    format(".{}", [take(result, digits)])
+    format(".{}", List[take(result, digits)])
   } else {
     core.text.empty()
   }
@@ -263,11 +263,11 @@ define _format-gmt-offset(offset: int): text {
     let offset = mul-int(offset, -1);
     let hours = div-int(offset, mul-int(60, 60));
     let minutes = div-int(rem-int(offset, mul-int(60, 60)), 60);
-    format("-{}:{}", [_zeropad2(hours), _zeropad2(minutes)])
+    format("-{}:{}", List[_zeropad2(hours), _zeropad2(minutes)])
   } else-if lt-int(0, offset) {
     let hours = div-int(offset, mul-int(60, 60));
     let minutes = div-int(rem-int(offset, mul-int(60, 60)), 60);
-    format("+{}:{}", [_zeropad2(hours), _zeropad2(minutes)])
+    format("+{}:{}", List[_zeropad2(hours), _zeropad2(minutes)])
   } else {
     *"Z"
   }
@@ -276,7 +276,7 @@ define _format-gmt-offset(offset: int): text {
 inline _to-ISO8601(ts: time, nanosecond-digits: int, to-clock: (time) -> clock): text {
   let t = to-clock(ts);
   let Clock of {nanoseconds, seconds, minutes, hours, day, month, year, gmt-offset} = t;
-  format("{}-{}-{}T{}:{}:{}{}{}", [
+  format("{}-{}-{}T{}:{}:{}{}{}", List[
     show-int(year),
     _zeropad2(month),
     _zeropad2(day),
@@ -312,7 +312,7 @@ define from-ISO8601(datetime-text: &text): ?time {
 
 define show-time(m: time, decimals: int): text {
   let Time of {seconds := s, nanoseconds := ns} = m;
-  format("{}{}", [show-int(s), _format-nanoseconds(ns, decimals)])
+  format("{}{}", List[show-int(s), _format-nanoseconds(ns, decimals)])
 }
 
 define _time-as-int(m: time): int {
