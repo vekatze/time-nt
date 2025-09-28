@@ -340,33 +340,33 @@ define sub-time(m1: time, m2: time): time {
   add-time(m1, Time of {seconds := mul-int(-1, s2), nanoseconds := ns2})
 }
 
-inline _cmp-time(m1: time, m2: time, !cmp: (int, int) -> bool): bool {
-  let Time of {seconds := s1, nanoseconds := ns1} = m1;
-  let Time of {seconds := s2, nanoseconds := ns2} = m2;
-  if !cmp(s1, s2) {
-    !cmp(ns1, ns2)
+inline _cmp-time(m1: &time, m2: &time, !cmp: (int, int) -> bool): bool {
+  tie Time of {seconds := s1, nanoseconds := ns1} = m1;
+  tie Time of {seconds := s2, nanoseconds := ns2} = m2;
+  if !cmp(*s1, *s2) {
+    !cmp(*ns1, *ns2)
   } else {
     False
   }
 }
 
-define eq-time(m1: time, m2: time): bool {
+define eq-time(m1: &time, m2: &time): bool {
   _cmp-time(m1, m2, eq-int)
 }
 
-define lt-time(m1: time, m2: time): bool {
+define lt-time(m1: &time, m2: &time): bool {
   _cmp-time(m1, m2, lt-int)
 }
 
-define le-time(m1: time, m2: time): bool {
+define le-time(m1: &time, m2: &time): bool {
   _cmp-time(m1, m2, le-int)
 }
 
-define gt-time(m1: time, m2: time): bool {
+define gt-time(m1: &time, m2: &time): bool {
   _cmp-time(m1, m2, gt-int)
 }
 
-define ge-time(m1: time, m2: time): bool {
+define ge-time(m1: &time, m2: &time): bool {
   _cmp-time(m1, m2, ge-int)
 }
 
