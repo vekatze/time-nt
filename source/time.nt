@@ -113,7 +113,7 @@ define _load-c-long(address: pointer): int {
 }
 
 define _from-time(t: time, interpreter: (pointer, pointer) -> pointer): clock {
-  let Time of {seconds, nanoseconds} = t;
+  let Time{seconds, nanoseconds} = t;
   let struct = magic alloca(int8, 16);
   store-int(seconds, struct);
   store-int(nanoseconds, shift(struct, 8));
@@ -132,7 +132,7 @@ define _from-time(t: time, interpreter: (pointer, pointer) -> pointer): clock {
   let is-dst = _encode-dst(_zext-load-int32(shift(localtime, 32)));
   let gmt-offset = _load-c-long(shift(localtime, 40));
   let timezone = from-c-string(magic cast(pointer, &c-string, magic load(pointer, shift(localtime, 48))));
-  Clock of {
+  Clock{
     nanoseconds,
     seconds,
     minutes,
@@ -150,7 +150,7 @@ define _from-time(t: time, interpreter: (pointer, pointer) -> pointer): clock {
 
 define _from-clock(t: clock, interpreter: (pointer) -> c-time-t): time {
   let
-    Clock of {
+    Clock{
       nanoseconds,
       seconds,
       minutes,
@@ -182,7 +182,7 @@ define _from-clock(t: clock, interpreter: (pointer) -> c-time-t): time {
   let _ = timezone;
   let _ = timezone-txt;
   let C-Time(seconds) = interpreter(struct);
-  Time of {seconds, nanoseconds}
+  Time{seconds, nanoseconds}
 }
 
 define get-time(): time {
@@ -193,7 +193,7 @@ define get-time(): time {
   } else {
     let seconds: int = load-int(struct);
     let nanoseconds: int = load-int(shift(struct, 8));
-    Time of {nanoseconds, seconds}
+    Time{nanoseconds, seconds}
   }
 }
 
@@ -275,7 +275,7 @@ define _format-gmt-offset(offset: int): text {
 
 inline _to-ISO8601(ts: time, nanosecond-digits: int, to-clock: (time) -> clock): text {
   let t = to-clock(ts);
-  let Clock of {nanoseconds, seconds, minutes, hours, day, month, year, gmt-offset} = t;
+  let Clock{nanoseconds, seconds, minutes, hours, day, month, year, gmt-offset} = t;
   format("{}-{}-{}T{}:{}:{}{}{}", List[
     show-int(year),
     _zeropad2(month),
@@ -304,19 +304,19 @@ define from-ISO8601(datetime-text: &text): ?time {
   let seconds = load-int(time-struct);
   let nanoseconds = load-int(shift(time-struct, 8));
   if ge-int32(result, 0) {
-    Right(Time of {seconds, nanoseconds})
+    Right(Time{seconds, nanoseconds})
   } else {
     none
   }
 }
 
 define show-time(m: time, decimals: int): text {
-  let Time of {seconds := s, nanoseconds := ns} = m;
+  let Time{seconds := s, nanoseconds := ns} = m;
   format("{}{}", List[show-int(s), _format-nanoseconds(ns, decimals)])
 }
 
 define _time-as-int(m: time): int {
-  let Time of {seconds := s, nanoseconds := ns} = m;
+  let Time{seconds := s, nanoseconds := ns} = m;
   if lt-int(0, s) {
     add-int(mul-int(s, 1000000000), ns)
   } else {
@@ -329,22 +329,22 @@ define add-time(m1: time, m2: time): time {
   let v1 = _time-as-int(m1);
   let v2 = _time-as-int(m2);
   let v = add-int(v1, v2);
-  Time of {
+  Time{
     seconds := div-int(v, 1000000000),
     nanoseconds := abs-int(rem-int(v, 1000000000)),
   }
 }
 
 define sub-time(m1: time, m2: time): time {
-  let Time of {seconds := s2, nanoseconds := ns2} = m2;
-  add-time(m1, Time of {seconds := mul-int(-1, s2), nanoseconds := ns2})
+  let Time{seconds := s2, nanoseconds := ns2} = m2;
+  add-time(m1, Time{seconds := mul-int(-1, s2), nanoseconds := ns2})
 }
 
 inline _cmp-time(m1: &time, m2: &time, !cmp: (int, int) -> bool): bool {
-  tie Time of {seconds := s1, nanoseconds := ns1} = m1;
-  tie Time of {seconds := s2, nanoseconds := ns2} = m2;
-  if !cmp(*s1, *s2) {
-    !cmp(*ns1, *ns2)
+  tie Time{seconds := s1, nanoseconds := ns1} = m1;
+  tie Time{seconds := s2, nanoseconds := ns2} = m2;
+  if cmp(*s1, *s2) {
+    cmp(*ns1, *ns2)
   } else {
     False
   }
@@ -377,9 +377,9 @@ define now(): text {
 define zen(): unit {
   pin t = show-time(get-time(), 3);
   print-line(t);
-  let !test-ts = Time of {seconds := 123453234, nanoseconds := 56789};
-  let Clock of {minutes, seconds} = to-UTC-clock(from-UTC-clock(to-UTC-clock(!test-ts)));
-  pin time-text = to-ISO8601-UTC(!test-ts, 6);
+  let !test-ts = Time{seconds := 123453234, nanoseconds := 56789};
+  let Clock{minutes, seconds} = to-UTC-clock(from-UTC-clock(to-UTC-clock(test-ts)));
+  pin time-text = to-ISO8601-UTC(test-ts, 6);
   print-line(time-text);
   print("minutes: ");
   print-int(minutes);
@@ -391,7 +391,7 @@ define zen(): unit {
   // printf("now: {}\n", [now()]);
   match from-ISO8601("2024-05-27T11:11:40.553393+09:00") {
   | Right(!ts) =>
-    let calc-t = sub-time(add-time(!ts, !ts), !ts);
+    let calc-t = sub-time(add-time(ts, ts), ts);
     pin time-text = to-ISO8601-UTC(calc-t, 6);
     print-line(time-text)
   | Left(_) =>
