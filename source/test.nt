@@ -2,6 +2,6 @@ import {
   this.time {zen},
 }
 
-define main(): unit {
+define main() -> unit {
   zen()
 }

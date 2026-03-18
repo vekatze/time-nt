@@ -52,13 +52,13 @@ foreign {
   neut_time_v0_4_CLOCK_REALTIME(): clockid-t,
 }
 
-inline SIZEOF_STRUCT_TM: c-size {
+constant SIZEOF_STRUCT_TM: c-size {
   magic opaque-value {
     magic external neut_time_v0_4_sizeof_struct_tm()
   }
 }
 
-inline CLOCK_REALTIME: clockid-t {
+constant CLOCK_REALTIME: clockid-t {
   magic opaque-value {
     magic external neut_time_v0_4_CLOCK_REALTIME()
   }
@@ -88,7 +88,7 @@ data clock {
   )
 }
 
-define _encode-dst(x: int): bool {
+define _encode-dst(x: int) -> bool {
   if eq-int(x, 0) {
     False
   } else {
@@ -96,7 +96,7 @@ define _encode-dst(x: int): bool {
   }
 }
 
-define _decode-dst(x: bool): int {
+define _decode-dst(x: bool) -> int {
   if x {
     1
   } else {
@@ -104,15 +104,15 @@ define _decode-dst(x: bool): int {
   }
 }
 
-define _zext-load-int32(address: pointer): int {
+define _zext-load-int32(address: pointer) -> int {
   zext-int32-int(magic load(int32, address))
 }
 
-define _load-c-long(address: pointer): int {
+define _load-c-long(address: pointer) -> int {
   from-c-long(magic load(c-long, address))
 }
 
-define _from-time(t: time, interpreter: (pointer, pointer) -> pointer): clock {
+define _from-time(t: time, interpreter: (pointer, pointer) -> pointer) -> clock {
   let Time{seconds, nanoseconds} = t;
   let struct = magic alloca(int8, 16);
   store-int(seconds, struct);
@@ -148,7 +148,7 @@ define _from-time(t: time, interpreter: (pointer, pointer) -> pointer): clock {
   }
 }
 
-define _from-clock(t: clock, interpreter: (pointer) -> c-time-t): time {
+define _from-clock(t: clock, interpreter: (pointer) -> c-time-t) -> time {
   let
     Clock{
       nanoseconds,
@@ -185,7 +185,7 @@ define _from-clock(t: clock, interpreter: (pointer) -> c-time-t): time {
   Time{seconds, nanoseconds}
 }
 
-define get-time(): time {
+define get-time() -> time {
   let struct = magic alloca(int8, 16);
   let result = from-c-int(magic external clock_gettime(CLOCK_REALTIME, struct));
   if lt-int(result, 0) {
@@ -197,39 +197,39 @@ define get-time(): time {
   }
 }
 
-define _mktime(ptr: pointer): c-time-t {
+define _mktime(ptr: pointer) -> c-time-t {
   magic external mktime(ptr)
 }
 
-define _timegm(ptr: pointer): c-time-t {
+define _timegm(ptr: pointer) -> c-time-t {
   magic external timegm(ptr)
 }
 
-define _localtime_r(ptr: pointer, buffer: pointer): pointer {
+define _localtime_r(ptr: pointer, buffer: pointer) -> pointer {
   magic external localtime_r(ptr, buffer)
 }
 
-define _gmtime_r(ptr: pointer, buffer: pointer): pointer {
+define _gmtime_r(ptr: pointer, buffer: pointer) -> pointer {
   magic external gmtime_r(ptr, buffer)
 }
 
-define from-local-clock(t: clock): time {
+define from-local-clock(t: clock) -> time {
   _from-clock(t, _mktime)
 }
 
-define from-UTC-clock(t: clock): time {
+define from-UTC-clock(t: clock) -> time {
   _from-clock(t, _timegm)
 }
 
-define to-local-clock(t: time): clock {
+define to-local-clock(t: time) -> clock {
   _from-time(t, _localtime_r)
 }
 
-define to-UTC-clock(t: time): clock {
+define to-UTC-clock(t: time) -> clock {
   _from-time(t, _gmtime_r)
 }
 
-define _zeropad(x: int, format-text: &text): text {
+define _zeropad(x: int, format-text: &text) -> text {
   pin fmt = to-c-string(format-text);
   let fmt = magic cast(&c-string, pointer, fmt);
   let size = from-c-int(magic external snprintf(null-pointer, 0, fmt)(x: int));
@@ -241,15 +241,15 @@ define _zeropad(x: int, format-text: &text): text {
   magic cast(pointer, text, ptr)
 }
 
-define _zeropad2(x: int): text {
+define _zeropad2(x: int) -> text {
   _zeropad(x, "%02ld")
 }
 
-define _zeropad9(x: int): text {
+define _zeropad9(x: int) -> text {
   _zeropad(x, "%09ld")
 }
 
-define _format-nanoseconds(nanoseconds: int, digits: int): text {
+define _format-nanoseconds(nanoseconds: int, digits: int) -> text {
   if gt-int(digits, 0) {
     let result = _zeropad9(nanoseconds);
     format(".{}", List[take(result, digits)])
@@ -258,7 +258,7 @@ define _format-nanoseconds(nanoseconds: int, digits: int): text {
   }
 }
 
-define _format-gmt-offset(offset: int): text {
+define _format-gmt-offset(offset: int) -> text {
   if lt-int(offset, 0) {
     let offset = mul-int(offset, -1);
     let hours = div-int(offset, mul-int(60, 60));
@@ -273,7 +273,7 @@ define _format-gmt-offset(offset: int): text {
   }
 }
 
-inline _to-ISO8601(ts: time, nanosecond-digits: int, to-clock: (time) -> clock): text {
+inline _to-ISO8601(ts: time, nanosecond-digits: int, to-clock: (time) -> clock) -> text {
   let t = to-clock(ts);
   let Clock{nanoseconds, seconds, minutes, hours, day, month, year, gmt-offset} = t;
   format("{}-{}-{}T{}:{}:{}{}{}", List[
@@ -288,15 +288,15 @@ inline _to-ISO8601(ts: time, nanosecond-digits: int, to-clock: (time) -> clock):
   ])
 }
 
-define to-ISO8601-local(ts: time, nanosecond-digits: int): text {
+define to-ISO8601-local(ts: time, nanosecond-digits: int) -> text {
   _to-ISO8601(ts, nanosecond-digits, to-local-clock)
 }
 
-define to-ISO8601-UTC(ts: time, nanosecond-digits: int): text {
+define to-ISO8601-UTC(ts: time, nanosecond-digits: int) -> text {
   _to-ISO8601(ts, nanosecond-digits, to-UTC-clock)
 }
 
-define from-ISO8601(datetime-text: &text): ?time {
+define from-ISO8601(datetime-text: &text) -> ?time {
   let time-struct = magic alloca(int8, 16);
   pin datetime-text = to-c-string(datetime-text);
   let datetime-text = magic cast(&c-string, pointer, datetime-text);
@@ -310,12 +310,12 @@ define from-ISO8601(datetime-text: &text): ?time {
   }
 }
 
-define show-time(m: time, decimals: int): text {
+define show-time(m: time, decimals: int) -> text {
   let Time{seconds := s, nanoseconds := ns} = m;
   format("{}{}", List[show-int(s), _format-nanoseconds(ns, decimals)])
 }
 
-define _time-as-int(m: time): int {
+define _time-as-int(m: time) -> int {
   let Time{seconds := s, nanoseconds := ns} = m;
   if lt-int(0, s) {
     add-int(mul-int(s, 1000000000), ns)
@@ -325,7 +325,7 @@ define _time-as-int(m: time): int {
   }
 }
 
-define add-time(m1: time, m2: time): time {
+define add-time(m1: time, m2: time) -> time {
   let v1 = _time-as-int(m1);
   let v2 = _time-as-int(m2);
   let v = add-int(v1, v2);
@@ -335,12 +335,12 @@ define add-time(m1: time, m2: time): time {
   }
 }
 
-define sub-time(m1: time, m2: time): time {
+define sub-time(m1: time, m2: time) -> time {
   let Time{seconds := s2, nanoseconds := ns2} = m2;
   add-time(m1, Time{seconds := mul-int(-1, s2), nanoseconds := ns2})
 }
 
-inline _cmp-time(m1: &time, m2: &time, !cmp: (int, int) -> bool): bool {
+inline _cmp-time(m1: &time, m2: &time, !cmp: (int, int) -> bool) -> bool {
   tie Time{seconds := s1, nanoseconds := ns1} = m1;
   tie Time{seconds := s2, nanoseconds := ns2} = m2;
   if cmp(*s1, *s2) {
@@ -350,31 +350,31 @@ inline _cmp-time(m1: &time, m2: &time, !cmp: (int, int) -> bool): bool {
   }
 }
 
-define eq-time(m1: &time, m2: &time): bool {
+define eq-time(m1: &time, m2: &time) -> bool {
   _cmp-time(m1, m2, eq-int)
 }
 
-define lt-time(m1: &time, m2: &time): bool {
+define lt-time(m1: &time, m2: &time) -> bool {
   _cmp-time(m1, m2, lt-int)
 }
 
-define le-time(m1: &time, m2: &time): bool {
+define le-time(m1: &time, m2: &time) -> bool {
   _cmp-time(m1, m2, le-int)
 }
 
-define gt-time(m1: &time, m2: &time): bool {
+define gt-time(m1: &time, m2: &time) -> bool {
   _cmp-time(m1, m2, gt-int)
 }
 
-define ge-time(m1: &time, m2: &time): bool {
+define ge-time(m1: &time, m2: &time) -> bool {
   _cmp-time(m1, m2, ge-int)
 }
 
-define now(): text {
+define now() -> text {
   to-ISO8601-local(get-time(), 6)
 }
 
-define zen(): unit {
+define zen() -> unit {
   pin t = show-time(get-time(), 3);
   print-line(t);
   let !test-ts = Time{seconds := 123453234, nanoseconds := 56789};
@@ -399,6 +399,6 @@ define zen(): unit {
   }
 }
 
-define main(): unit {
+define main() -> unit {
   zen()
 }
