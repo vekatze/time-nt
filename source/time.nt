@@ -10,8 +10,8 @@ import {
   core.magic,
   core.memory {load-int, store-int},
   core.pointer {null-pointer, shift},
-  core.text {format, take},
-  core.text.io {print-line},
+  core.string {format, take},
+  core.string.io {print-line},
   core.trick {panic},
   core.word,
 }
@@ -84,7 +84,7 @@ data clock {
     yearday: int,
     is-dst: bool,
     gmt-offset: int,
-    timezone: text,
+    timezone: string,
   )
 }
 
@@ -229,8 +229,8 @@ define to-UTC-clock(t: time) -> clock {
   _from-time(t, _gmtime_r)
 }
 
-define _zeropad(x: int, format-text: &text) -> text {
-  pin fmt = to-c-string(format-text);
+define _zeropad(x: int, format-string: &string) -> string {
+  pin fmt = to-c-string(format-string);
   let fmt = magic cast(&c-string, pointer, fmt);
   let size = from-c-int(magic external snprintf(null-pointer, 0, fmt)(x: int));
   let ptr = malloc(C-Size(add-int(size, add-int(1, mul-int(core.word.size, 2)))));
@@ -238,27 +238,27 @@ define _zeropad(x: int, format-text: &text) -> text {
   store-int(size, shift(ptr, core.word.size));
   let buffer = shift(ptr, mul-int(core.word.size, 2));
   let _ = magic external sprintf(buffer, fmt)(x: int);
-  magic cast(pointer, text, ptr)
+  magic cast(pointer, string, ptr)
 }
 
-define _zeropad2(x: int) -> text {
+define _zeropad2(x: int) -> string {
   _zeropad(x, "%02ld")
 }
 
-define _zeropad9(x: int) -> text {
+define _zeropad9(x: int) -> string {
   _zeropad(x, "%09ld")
 }
 
-define _format-nanoseconds(nanoseconds: int, digits: int) -> text {
+define _format-nanoseconds(nanoseconds: int, digits: int) -> string {
   if gt-int(digits, 0) {
     let result = _zeropad9(nanoseconds);
     format(".{}", List[take(result, digits)])
   } else {
-    core.text.empty()
+    core.string.empty()
   }
 }
 
-define _format-gmt-offset(offset: int) -> text {
+define _format-gmt-offset(offset: int) -> string {
   if lt-int(offset, 0) {
     let offset = mul-int(offset, -1);
     let hours = div-int(offset, mul-int(60, 60));
@@ -273,7 +273,7 @@ define _format-gmt-offset(offset: int) -> text {
   }
 }
 
-inline _to-ISO8601(ts: time, nanosecond-digits: int, to-clock: (time) -> clock) -> text {
+inline _to-ISO8601(ts: time, nanosecond-digits: int, to-clock: (time) -> clock) -> string {
   let t = to-clock(ts);
   let Clock {nanoseconds, seconds, minutes, hours, day, month, year, gmt-offset} = t;
   format("{}-{}-{}T{}:{}:{}{}{}", List[
@@ -288,19 +288,19 @@ inline _to-ISO8601(ts: time, nanosecond-digits: int, to-clock: (time) -> clock) 
   ])
 }
 
-define to-ISO8601-local(ts: time, nanosecond-digits: int) -> text {
+define to-ISO8601-local(ts: time, nanosecond-digits: int) -> string {
   _to-ISO8601(ts, nanosecond-digits, to-local-clock)
 }
 
-define to-ISO8601-UTC(ts: time, nanosecond-digits: int) -> text {
+define to-ISO8601-UTC(ts: time, nanosecond-digits: int) -> string {
   _to-ISO8601(ts, nanosecond-digits, to-UTC-clock)
 }
 
-define from-ISO8601(datetime-text: &text) -> ?time {
+define from-ISO8601(datetime-string: &string) -> ?time {
   let time-struct = magic alloca(int8, 16);
-  pin datetime-text = to-c-string(datetime-text);
-  let datetime-text = magic cast(&c-string, pointer, datetime-text);
-  let result: int32 = magic external neut_time_v0_4_parse_iso8601(datetime-text, time-struct);
+  pin datetime-string = to-c-string(datetime-string);
+  let datetime-string = magic cast(&c-string, pointer, datetime-string);
+  let result: int32 = magic external neut_time_v0_4_parse_iso8601(datetime-string, time-struct);
   let seconds = load-int(time-struct);
   let nanoseconds = load-int(shift(time-struct, 8));
   if ge-int32(result, 0) {
@@ -310,7 +310,7 @@ define from-ISO8601(datetime-text: &text) -> ?time {
   }
 }
 
-define show-time(m: time, decimals: int) -> text {
+define show-time(m: time, decimals: int) -> string {
   let Time {seconds := s, nanoseconds := ns} = m;
   format("{}{}", List[show-int(s), _format-nanoseconds(ns, decimals)])
 }
@@ -370,7 +370,7 @@ define ge-time(m1: &time, m2: &time) -> bool {
   _cmp-time(m1, m2, ge-int)
 }
 
-define now() -> text {
+define now() -> string {
   to-ISO8601-local(get-time(), 6)
 }
 
@@ -379,21 +379,21 @@ define zen() -> unit {
   print-line(t);
   let !test-ts = Time {seconds := 123453234, nanoseconds := 56789};
   let Clock {minutes, seconds} = to-UTC-clock(from-UTC-clock(to-UTC-clock(test-ts)));
-  pin time-text = to-ISO8601-UTC(test-ts, 6);
-  print-line(time-text);
+  pin time-string = to-ISO8601-UTC(test-ts, 6);
+  print-line(time-string);
   print("minutes: ");
   print-int(minutes);
   print(", seconds: ");
   print-int-line(seconds);
-  pin now-text = now();
-  print-line(now-text);
+  pin now-string = now();
+  print-line(now-string);
   // printf("minutes: {}, seconds: {}\n", [show-int(minutes), show-int(seconds)]);
   // printf("now: {}\n", [now()]);
   match from-ISO8601("2024-05-27T11:11:40.553393+09:00") {
   | Right(!ts) =>
     let calc-t = sub-time(add-time(ts, ts), ts);
-    pin time-text = to-ISO8601-UTC(calc-t, 6);
-    print-line(time-text)
+    pin time-string = to-ISO8601-UTC(calc-t, 6);
+    print-line(time-string)
   | Left(_) =>
     print("failed to parse\n")
   }
