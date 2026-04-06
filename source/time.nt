@@ -39,17 +39,17 @@ data c-time-t {
 }
 
 foreign {
-  clock_gettime(clockid-t, pointer): c-int,
-  localtime_r(pointer, pointer): pointer,
-  gmtime_r(pointer, pointer): pointer,
-  mktime(pointer): c-time-t,
-  timegm(pointer): c-time-t,
-  snprintf(pointer, c-size, pointer): c-int,
-  sprintf(pointer, pointer): c-int,
-  strptime(pointer, pointer, pointer): pointer,
-  neut_time_v0_4_sizeof_struct_tm(): c-size,
-  neut_time_v0_4_parse_iso8601(pointer, pointer): int32,
-  neut_time_v0_4_CLOCK_REALTIME(): clockid-t,
+  clock_gettime(clockid-t, pointer) -> c-int,
+  localtime_r(pointer, pointer) -> pointer,
+  gmtime_r(pointer, pointer) -> pointer,
+  mktime(pointer) -> c-time-t,
+  timegm(pointer) -> c-time-t,
+  snprintf(pointer, c-size, pointer) -> c-int,
+  sprintf(pointer, pointer) -> c-int,
+  strptime(pointer, pointer, pointer) -> pointer,
+  neut_time_v0_4_sizeof_struct_tm() -> c-size,
+  neut_time_v0_4_parse_iso8601(pointer, pointer) -> int32,
+  neut_time_v0_4_CLOCK_REALTIME() -> clockid-t,
 }
 
 constant SIZEOF_STRUCT_TM: c-size {
