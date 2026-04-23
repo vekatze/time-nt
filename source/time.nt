@@ -340,34 +340,56 @@ define sub-time(m1: time, m2: time) -> time {
   add-time(m1, Time{seconds := mul-int(-1, s2), nanoseconds := ns2})
 }
 
-inline _cmp-time(m1: &time, m2: &time, !cmp: (int, int) -> bool) -> bool {
+define eq-time(m1: &time, m2: &time) -> bool {
   tie Time{seconds := s1, nanoseconds := ns1} = m1;
   tie Time{seconds := s2, nanoseconds := ns2} = m2;
-  if cmp(*s1, *s2) {
-    cmp(*ns1, *ns2)
-  } else {
-    False
-  }
-}
-
-define eq-time(m1: &time, m2: &time) -> bool {
-  _cmp-time(m1, m2, eq-int)
+  and(eq-int(*s1, *s2), eq-int(*ns1, *ns2))
 }
 
 define lt-time(m1: &time, m2: &time) -> bool {
-  _cmp-time(m1, m2, lt-int)
+  tie Time{seconds := s1, nanoseconds := ns1} = m1;
+  tie Time{seconds := s2, nanoseconds := ns2} = m2;
+  if lt-int(*s1, *s2) {
+    True
+  } else-if gt-int(*s1, *s2) {
+    False
+  } else {
+    lt-int(*ns1, *ns2)
+  }
 }
 
 define le-time(m1: &time, m2: &time) -> bool {
-  _cmp-time(m1, m2, le-int)
+  or(lt-time(m1, m2), eq-time(m1, m2))
 }
 
 define gt-time(m1: &time, m2: &time) -> bool {
-  _cmp-time(m1, m2, gt-int)
+  lt-time(m2, m1)
 }
 
 define ge-time(m1: &time, m2: &time) -> bool {
-  _cmp-time(m1, m2, ge-int)
+  le-time(m2, m1)
+}
+
+inline _ensure(message: &string, check: bool) -> unit {
+  if check {
+    Unit
+  } else {
+    panic(message)
+  }
+}
+
+define _test-comparison() -> unit {
+  pin t1 = Time{seconds := 1, nanoseconds := 0};
+  pin t2 = Time{seconds := 1, nanoseconds := 1};
+  pin t3 = Time{seconds := 2, nanoseconds := 0};
+  pin t4 = Time{seconds := 1, nanoseconds := 999999999};
+  _ensure("eq-time: identical timestamps must compare equal\n", eq-time(t1, t1));
+  _ensure("eq-time: different nanoseconds must not compare equal\n", not(eq-time(t1, t2)));
+  _ensure("lt-time: nanoseconds must break ties when seconds are equal\n", lt-time(t1, t2));
+  _ensure("lt-time: smaller seconds must win regardless of nanoseconds\n", lt-time(t4, t3));
+  _ensure("le-time: identical timestamps must compare as <=\n", le-time(t1, t1));
+  _ensure("gt-time: larger seconds must win regardless of nanoseconds\n", gt-time(t3, t4));
+  _ensure("ge-time: identical timestamps must compare as >=\n", ge-time(t1, t1))
 }
 
 define now() -> string {
@@ -375,6 +397,7 @@ define now() -> string {
 }
 
 define zen() -> unit {
+  _test-comparison();
   pin t = show-time(get-time(), 3);
   print-line(t);
   let !test-ts = Time{seconds := 123453234, nanoseconds := 56789};
