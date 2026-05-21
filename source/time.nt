@@ -2,17 +2,15 @@ import {
   core.c-int {c-int, from-c-int},
   core.c-long {c-long, from-c-long},
   core.c-size {C-Size, c-size, from-c-size},
-  core.c-string {c-string, from-c-string, to-c-string},
-  core.external {malloc},
+  core.c-string {c-string, from-string, to-string},
+  core.debug {panic},
   core.int {abs-int},
-  core.int.io {print-int, print-int-line},
   core.int.show {show-int},
-  core.magic,
-  core.memory {load-int, store-int},
+  core.memory {malloc},
+  core.memory.unsafe {load-int, store-int},
   core.pointer {null-pointer, shift},
   core.string {format, take},
-  core.string.io {print-line},
-  core.trick {panic},
+  core.unsafe,
   core.word,
 }
 
@@ -131,7 +129,7 @@ define _from-time(t: time, interpreter: (pointer, pointer) -> pointer) -> clock 
   let yearday = _zext-load-int32(shift(localtime, 28));
   let is-dst = _encode-dst(_zext-load-int32(shift(localtime, 32)));
   let gmt-offset = _load-c-long(shift(localtime, 40));
-  let timezone = from-c-string(magic cast(pointer, &c-string, magic load(pointer, shift(localtime, 48))));
+  let timezone = to-string(magic cast(pointer, &c-string, magic load(pointer, shift(localtime, 48))));
   Clock{
     nanoseconds,
     seconds,
@@ -166,7 +164,7 @@ define _from-clock(t: clock, interpreter: (pointer) -> c-time-t) -> time {
     }
   = t;
   pin timezone = timezone;
-  pin timezone-txt = to-c-string(timezone);
+  pin timezone-txt = from-string(timezone);
   let struct = magic alloca(int8, 56);
   store-int(seconds, struct);
   store-int(minutes, shift(struct, 4));
@@ -178,7 +176,7 @@ define _from-clock(t: clock, interpreter: (pointer) -> c-time-t) -> time {
   store-int(yearday, shift(struct, 28));
   store-int(_decode-dst(is-dst), shift(struct, 32));
   store-int(gmt-offset, shift(struct, 40));
-  store-int(core.magic.cast<&c-string, int>(timezone-txt), shift(struct, 48));
+  store-int(core.unsafe.cast<&c-string, int>(timezone-txt), shift(struct, 48));
   let _ = timezone;
   let _ = timezone-txt;
   let C-Time(seconds) = interpreter(struct);
@@ -230,7 +228,7 @@ define to-UTC-clock(t: time) -> clock {
 }
 
 define _zeropad(x: int, format-string: &string) -> string {
-  pin fmt = to-c-string(format-string);
+  pin fmt = from-string(format-string);
   let fmt = magic cast(&c-string, pointer, fmt);
   let size = from-c-int(magic external snprintf(null-pointer, 0, fmt)(x: int));
   let ptr = malloc(C-Size(add-int(size, add-int(1, mul-int(core.word.size, 2)))));
@@ -298,7 +296,7 @@ define to-ISO8601-UTC(ts: time, nanosecond-digits: int) -> string {
 
 define from-ISO8601(datetime-string: &string) -> ?time {
   let time-struct = magic alloca(int8, 16);
-  pin datetime-string = to-c-string(datetime-string);
+  pin datetime-string = from-string(datetime-string);
   let datetime-string = magic cast(&c-string, pointer, datetime-string);
   let result: int32 = magic external neut_time_v0_4_parse_iso8601(datetime-string, time-struct);
   let seconds = load-int(time-struct);
@@ -378,50 +376,6 @@ inline _ensure(message: &string, check: bool) -> unit {
   }
 }
 
-define _test-comparison() -> unit {
-  pin t1 = Time{seconds := 1, nanoseconds := 0};
-  pin t2 = Time{seconds := 1, nanoseconds := 1};
-  pin t3 = Time{seconds := 2, nanoseconds := 0};
-  pin t4 = Time{seconds := 1, nanoseconds := 999999999};
-  _ensure("eq-time: identical timestamps must compare equal\n", eq-time(t1, t1));
-  _ensure("eq-time: different nanoseconds must not compare equal\n", not(eq-time(t1, t2)));
-  _ensure("lt-time: nanoseconds must break ties when seconds are equal\n", lt-time(t1, t2));
-  _ensure("lt-time: smaller seconds must win regardless of nanoseconds\n", lt-time(t4, t3));
-  _ensure("le-time: identical timestamps must compare as <=\n", le-time(t1, t1));
-  _ensure("gt-time: larger seconds must win regardless of nanoseconds\n", gt-time(t3, t4));
-  _ensure("ge-time: identical timestamps must compare as >=\n", ge-time(t1, t1))
-}
-
 define now() -> string {
   to-ISO8601-local(get-time(), 6)
-}
-
-define zen() -> unit {
-  _test-comparison();
-  pin t = show-time(get-time(), 3);
-  print-line(t);
-  let !test-ts = Time{seconds := 123453234, nanoseconds := 56789};
-  let Clock{minutes, seconds} = to-UTC-clock(from-UTC-clock(to-UTC-clock(test-ts)));
-  pin time-string = to-ISO8601-UTC(test-ts, 6);
-  print-line(time-string);
-  print("minutes: ");
-  print-int(minutes);
-  print(", seconds: ");
-  print-int-line(seconds);
-  pin now-string = now();
-  print-line(now-string);
-  // printf("minutes: {}, seconds: {}\n", [show-int(minutes), show-int(seconds)]);
-  // printf("now: {}\n", [now()]);
-  match from-ISO8601("2024-05-27T11:11:40.553393+09:00") {
-  | Right(!ts) =>
-    let calc-t = sub-time(add-time(ts, ts), ts);
-    pin time-string = to-ISO8601-UTC(calc-t, 6);
-    print-line(time-string)
-  | Left(_) =>
-    print("failed to parse\n")
-  }
-}
-
-define main() -> unit {
-  zen()
 }

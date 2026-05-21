@@ -1,0 +1,74 @@
+import {
+  core.debug {panic},
+  core.int.io {print-int, print-int-line},
+  this.time {
+    Clock,
+    Time,
+    add-time,
+    eq-time,
+    from-ISO8601,
+    from-UTC-clock,
+    ge-time,
+    get-time,
+    gt-time,
+    le-time,
+    lt-time,
+    now,
+    show-time,
+    sub-time,
+    to-ISO8601-UTC,
+    to-UTC-clock,
+  },
+}
+
+inline _ensure(message: &string, check: bool) -> unit {
+  if check {
+    Unit
+  } else {
+    panic(message)
+  }
+}
+
+define _test-comparison() -> unit {
+  pin t1 = Time{seconds := 1, nanoseconds := 0};
+  pin t2 = Time{seconds := 1, nanoseconds := 1};
+  pin t3 = Time{seconds := 2, nanoseconds := 0};
+  pin t4 = Time{seconds := 1, nanoseconds := 999999999};
+  _ensure("eq-time: identical timestamps must compare equal\n", eq-time(t1, t1));
+  _ensure("eq-time: different nanoseconds must not compare equal\n", not(eq-time(t1, t2)));
+  _ensure("lt-time: nanoseconds must break ties when seconds are equal\n", lt-time(t1, t2));
+  _ensure("lt-time: smaller seconds must win regardless of nanoseconds\n", lt-time(t4, t3));
+  _ensure("le-time: identical timestamps must compare as <=\n", le-time(t1, t1));
+  _ensure("gt-time: larger seconds must win regardless of nanoseconds\n", gt-time(t3, t4));
+  _ensure("ge-time: identical timestamps must compare as >=\n", ge-time(t1, t1))
+}
+
+define zen() -> unit {
+  _test-comparison();
+  pin t = show-time(get-time(), 3);
+  print-line(t);
+  let !test-ts = Time{seconds := 123453234, nanoseconds := 56789};
+  let Clock{minutes, seconds} = to-UTC-clock(from-UTC-clock(to-UTC-clock(test-ts)));
+  pin time-string = to-ISO8601-UTC(test-ts, 6);
+  print-line(time-string);
+  print("minutes: ");
+  print-int(minutes);
+  print(", seconds: ");
+  print-int-line(seconds);
+  pin now-string = now();
+  print-line(now-string);
+  // printf("minutes: {}, seconds: {}\n", [show-int(minutes), show-int(seconds)]);
+  // printf("now: {}\n", [now()]);
+  match from-ISO8601("2024-05-27T11:11:40.553393+09:00") {
+  | Right(!ts) =>
+    let calc-t = sub-time(add-time(ts, ts), ts);
+    pin time-string = to-ISO8601-UTC(calc-t, 6);
+    print-line(time-string)
+  | Left(_) =>
+    print("failed to parse\n")
+  }
+}
+
+define main() -> unit {
+  zen()
+}
